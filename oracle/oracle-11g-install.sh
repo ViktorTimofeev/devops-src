@@ -3,8 +3,19 @@
 # =============================================================================
 # Скрипт установки Oracle Database 11.2.0.4.0
 # Автор: DevOps Expert Team
-# Версия: 1.0
+# Версия: 1.1
 # Описание: Автоматическая установка Oracle 11g на Debian/Ubuntu
+# 
+# Переменные окружения для неинтерактивной установки:
+# ORACLE_SID_ENV - Oracle SID (например: prod, dev, test)
+# ORACLE_DB_NAME_ENV - Название базы данных (например: PROD, DEV, TEST)
+# ORACLE_SYS_PASSWORD_ENV - Пароль для пользователя SYS
+# ORACLE_SYSTEM_PASSWORD_ENV - Пароль для пользователя SYSTEM
+# ORACLE_SYSMAN_PASSWORD_ENV - Пароль для пользователя SYSMAN
+# ORACLE_DBSNMP_PASSWORD_ENV - Пароль для пользователя DBSNMP
+#
+# Пример использования с переменными окружения:
+# ORACLE_SID_ENV=prod ORACLE_DB_NAME_ENV=PROD curl -fsSL https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/oracle/oracle-11g-install.sh | bash
 # =============================================================================
 
 # Настройка кодировки UTF-8
@@ -64,6 +75,13 @@ ORACLE_DBSNMP_PASSWORD=""
 get_oracle_sid() {
     log "Настройка Oracle SID..."
     
+    # Проверка интерактивного режима
+    if [[ ! -t 0 ]]; then
+        log_warning "Неинтерактивный режим. Используется значение по умолчанию: orcl"
+        ORACLE_SID="orcl"
+        return
+    fi
+    
     while true; do
         echo -e "${BLUE}Введите Oracle SID (например: orcl, prod, dev):${NC}"
         read -p "> " sid
@@ -110,6 +128,13 @@ get_oracle_sid() {
 get_oracle_db_name() {
     log "Настройка названия базы данных..."
     
+    # Проверка интерактивного режима
+    if [[ ! -t 0 ]]; then
+        log_warning "Неинтерактивный режим. Используется значение по умолчанию: ORCL"
+        ORACLE_DB_NAME="ORCL"
+        return
+    fi
+    
     while true; do
         echo -e "${BLUE}Введите название базы данных (например: PROD, DEV, TEST):${NC}"
         read -p "> " db_name
@@ -144,6 +169,13 @@ get_oracle_password() {
     local password_var="$2"
     
     log "Настройка пароля для $password_type..."
+    
+    # Проверка интерактивного режима
+    if [[ ! -t 0 ]]; then
+        log_warning "Неинтерактивный режим. Используется пароль по умолчанию для $password_type"
+        eval "$password_var='Oracle123!'"
+        return
+    fi
     
     while true; do
         echo -e "${BLUE}Введите пароль для $password_type:${NC}"
@@ -208,15 +240,49 @@ get_oracle_password() {
 setup_oracle_config() {
     log "Настройка конфигурации Oracle..."
     
-    # Получение данных от пользователя
-    get_oracle_sid
-    get_oracle_db_name
+    # Проверка переменных окружения
+    if [[ -n "${ORACLE_SID_ENV:-}" ]]; then
+        ORACLE_SID="$ORACLE_SID_ENV"
+        log "Oracle SID задан через переменную окружения: $ORACLE_SID"
+    else
+        get_oracle_sid
+    fi
+    
+    if [[ -n "${ORACLE_DB_NAME_ENV:-}" ]]; then
+        ORACLE_DB_NAME="$ORACLE_DB_NAME_ENV"
+        log "Название БД задано через переменную окружения: $ORACLE_DB_NAME"
+    else
+        get_oracle_db_name
+    fi
     
     # Настройка паролей
-    get_oracle_password "SYS" "ORACLE_SYS_PASSWORD"
-    get_oracle_password "SYSTEM" "ORACLE_SYSTEM_PASSWORD"
-    get_oracle_password "SYSMAN" "ORACLE_SYSMAN_PASSWORD"
-    get_oracle_password "DBSNMP" "ORACLE_DBSNMP_PASSWORD"
+    if [[ -n "${ORACLE_SYS_PASSWORD_ENV:-}" ]]; then
+        ORACLE_SYS_PASSWORD="$ORACLE_SYS_PASSWORD_ENV"
+        log "Пароль SYS задан через переменную окружения"
+    else
+        get_oracle_password "SYS" "ORACLE_SYS_PASSWORD"
+    fi
+    
+    if [[ -n "${ORACLE_SYSTEM_PASSWORD_ENV:-}" ]]; then
+        ORACLE_SYSTEM_PASSWORD="$ORACLE_SYSTEM_PASSWORD_ENV"
+        log "Пароль SYSTEM задан через переменную окружения"
+    else
+        get_oracle_password "SYSTEM" "ORACLE_SYSTEM_PASSWORD"
+    fi
+    
+    if [[ -n "${ORACLE_SYSMAN_PASSWORD_ENV:-}" ]]; then
+        ORACLE_SYSMAN_PASSWORD="$ORACLE_SYSMAN_PASSWORD_ENV"
+        log "Пароль SYSMAN задан через переменную окружения"
+    else
+        get_oracle_password "SYSMAN" "ORACLE_SYSMAN_PASSWORD"
+    fi
+    
+    if [[ -n "${ORACLE_DBSNMP_PASSWORD_ENV:-}" ]]; then
+        ORACLE_DBSNMP_PASSWORD="$ORACLE_DBSNMP_PASSWORD_ENV"
+        log "Пароль DBSNMP задан через переменную окружения"
+    else
+        get_oracle_password "DBSNMP" "ORACLE_DBSNMP_PASSWORD"
+    fi
     
     log "Конфигурация Oracle настроена:"
     log_info "SID: $ORACLE_SID"

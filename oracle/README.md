@@ -18,12 +18,33 @@
 
 ### Установка
 
+#### Интерактивная установка
 ```bash
-# Скачивание и запуск скрипта
+# Скачивание и запуск скрипта (интерактивный режим)
 curl -fsSL https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/oracle/oracle-11g-install.sh | bash
 
 # Или локальная установка
 sudo ./oracle-11g-install.sh
+```
+
+#### Неинтерактивная установка с переменными окружения
+```bash
+# Установка с предустановленными параметрами
+ORACLE_SID_ENV=prod \
+ORACLE_DB_NAME_ENV=PROD \
+ORACLE_SYS_PASSWORD_ENV=MySecurePass123! \
+ORACLE_SYSTEM_PASSWORD_ENV=MySecurePass123! \
+ORACLE_SYSMAN_PASSWORD_ENV=MySecurePass123! \
+ORACLE_DBSNMP_PASSWORD_ENV=MySecurePass123! \
+curl -fsSL https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/oracle/oracle-11g-install.sh | bash
+```
+
+#### Неинтерактивная установка с паролями по умолчанию
+```bash
+# Установка с паролями по умолчанию (Oracle123!)
+ORACLE_SID_ENV=prod \
+ORACLE_DB_NAME_ENV=PROD \
+curl -fsSL https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/oracle/oracle-11g-install.sh | bash
 ```
 
 ## 📋 Что делает скрипт
@@ -72,9 +93,22 @@ ORACLE_USER="oracle"
 ORACLE_GROUP="oinstall"
 ```
 
+### Переменные окружения
+
+Для неинтерактивной установки можно использовать следующие переменные окружения:
+
+| Переменная | Описание | Пример |
+|------------|----------|---------|
+| `ORACLE_SID_ENV` | Oracle SID | `prod`, `dev`, `test` |
+| `ORACLE_DB_NAME_ENV` | Название базы данных | `PROD`, `DEV`, `TEST` |
+| `ORACLE_SYS_PASSWORD_ENV` | Пароль для пользователя SYS | `MySecurePass123!` |
+| `ORACLE_SYSTEM_PASSWORD_ENV` | Пароль для пользователя SYSTEM | `MySecurePass123!` |
+| `ORACLE_SYSMAN_PASSWORD_ENV` | Пароль для пользователя SYSMAN | `MySecurePass123!` |
+| `ORACLE_DBSNMP_PASSWORD_ENV` | Пароль для пользователя DBSNMP | `MySecurePass123!` |
+
 ### Интерактивная настройка
 
-При установке Oracle скрипт запросит у пользователя:
+При установке Oracle скрипт запросит у пользователя (если переменные окружения не заданы):
 
 1. **Oracle SID** (например: orcl, prod, dev)
    - Длина: 1-8 символов
