@@ -30,6 +30,7 @@ desktop.ini
 
 # Исключения для релизных архивов
 !debian12/debian12-server-setup-v*.zip
+!oracle/oracle-11g-*.zip
 
 # Локальные конфигурации
 .env.local
