@@ -29,7 +29,7 @@ desktop.ini
 *.7z
 
 # Исключения для релизных архивов
-!debian12-server-setup-v*.zip
+!debian12/debian12-server-setup-v*.zip
 
 # Локальные конфигурации
 .env.local
