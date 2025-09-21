@@ -240,6 +240,12 @@ get_oracle_password() {
 setup_oracle_config() {
     log "Настройка конфигурации Oracle..."
     
+    # Отладочная информация о переменных окружения
+    log_info "Проверка переменных окружения:"
+    log_info "ORACLE_SID_ENV: ${ORACLE_SID_ENV:-не задана}"
+    log_info "ORACLE_DB_NAME_ENV: ${ORACLE_DB_NAME_ENV:-не задана}"
+    log_info "ORACLE_SYS_PASSWORD_ENV: ${ORACLE_SYS_PASSWORD_ENV:-не задана}"
+    
     # Проверка переменных окружения
     if [[ -n "${ORACLE_SID_ENV:-}" ]]; then
         ORACLE_SID="$ORACLE_SID_ENV"
@@ -333,11 +339,23 @@ check_system() {
 create_oracle_users() {
     log "Создание пользователей и групп Oracle..."
     
+    # Проверка доступности команд управления пользователями
+    if ! command -v groupadd >/dev/null 2>&1; then
+        log_error "Команда groupadd не найдена. Установка пакетов управления пользователями..."
+        apt update -y
+        apt install -y passwd
+    fi
+    
     # Создание групп
     for group in "$ORACLE_GROUP" "$ORACLE_DBA_GROUP" "$ORACLE_OPER_GROUP"; do
         if ! getent group "$group" >/dev/null; then
-            groupadd "$group"
-            log "Группа $group создана"
+            if command -v groupadd >/dev/null 2>&1; then
+                groupadd "$group"
+                log "Группа $group создана"
+            else
+                log_error "Не удалось создать группу $group: команда groupadd недоступна"
+                exit 1
+            fi
         else
             log "Группа $group уже существует"
         fi
@@ -1021,9 +1039,60 @@ EOF
     log "Ответный файл создан: /tmp/oracle_install.rsp"
 }
 
+# Парсинг параметров командной строки
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --sid)
+                ORACLE_SID_ENV="$2"
+                shift 2
+                ;;
+            --db-name)
+                ORACLE_DB_NAME_ENV="$2"
+                shift 2
+                ;;
+            --sys-password)
+                ORACLE_SYS_PASSWORD_ENV="$2"
+                shift 2
+                ;;
+            --system-password)
+                ORACLE_SYSTEM_PASSWORD_ENV="$2"
+                shift 2
+                ;;
+            --sysman-password)
+                ORACLE_SYSMAN_PASSWORD_ENV="$2"
+                shift 2
+                ;;
+            --dbsnmp-password)
+                ORACLE_DBSNMP_PASSWORD_ENV="$2"
+                shift 2
+                ;;
+            --help)
+                echo "Использование: $0 [опции]"
+                echo "Опции:"
+                echo "  --sid SID                    Oracle SID"
+                echo "  --db-name NAME               Название базы данных"
+                echo "  --sys-password PASSWORD      Пароль для SYS"
+                echo "  --system-password PASSWORD   Пароль для SYSTEM"
+                echo "  --sysman-password PASSWORD   Пароль для SYSMAN"
+                echo "  --dbsnmp-password PASSWORD   Пароль для DBSNMP"
+                echo "  --help                       Показать эту справку"
+                exit 0
+                ;;
+            *)
+                log_error "Неизвестный параметр: $1"
+                exit 1
+                ;;
+        esac
+    done
+}
+
 # Основная функция
 main() {
     log "Начинаем установку Oracle Database $ORACLE_VERSION..."
+    
+    # Парсинг аргументов командной строки
+    parse_arguments "$@"
     
     # Проверки
     check_root

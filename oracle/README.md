@@ -27,23 +27,27 @@ curl -fsSL https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/orac
 sudo ./oracle-11g-install.sh
 ```
 
+#### Неинтерактивная установка с параметрами через URL
+```bash
+# Установка с параметрами через URL (рекомендуемый способ)
+curl -fsSL "https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/oracle/oracle-install-with-params.sh?sid=prod&db_name=PROD&sys_password=MySecurePass123!" | bash
+```
+
 #### Неинтерактивная установка с переменными окружения
 ```bash
-# Установка с предустановленными параметрами
+# Установка с предустановленными параметрами (только для локального запуска)
 ORACLE_SID_ENV=prod \
 ORACLE_DB_NAME_ENV=PROD \
 ORACLE_SYS_PASSWORD_ENV=MySecurePass123! \
 ORACLE_SYSTEM_PASSWORD_ENV=MySecurePass123! \
 ORACLE_SYSMAN_PASSWORD_ENV=MySecurePass123! \
 ORACLE_DBSNMP_PASSWORD_ENV=MySecurePass123! \
-curl -fsSL https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/oracle/oracle-11g-install.sh | bash
+./oracle-11g-install.sh
 ```
 
 #### Неинтерактивная установка с паролями по умолчанию
 ```bash
 # Установка с паролями по умолчанию (Oracle123!)
-ORACLE_SID_ENV=prod \
-ORACLE_DB_NAME_ENV=PROD \
 curl -fsSL https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/oracle/oracle-11g-install.sh | bash
 ```
 
@@ -93,9 +97,27 @@ ORACLE_USER="oracle"
 ORACLE_GROUP="oinstall"
 ```
 
+### URL параметры (рекомендуемый способ)
+
+Для неинтерактивной установки через `curl | bash` используйте URL параметры:
+
+| Параметр | Описание | Пример |
+|----------|----------|---------|
+| `sid` | Oracle SID | `prod`, `dev`, `test` |
+| `db_name` | Название базы данных | `PROD`, `DEV`, `TEST` |
+| `sys_password` | Пароль для пользователя SYS | `MySecurePass123!` |
+| `system_password` | Пароль для пользователя SYSTEM | `MySecurePass123!` |
+| `sysman_password` | Пароль для пользователя SYSMAN | `MySecurePass123!` |
+| `dbsnmp_password` | Пароль для пользователя DBSNMP | `MySecurePass123!` |
+
+**Пример URL:**
+```
+https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/oracle/oracle-install-with-params.sh?sid=prod&db_name=PROD&sys_password=MySecurePass123!
+```
+
 ### Переменные окружения
 
-Для неинтерактивной установки можно использовать следующие переменные окружения:
+Для локальной установки можно использовать переменные окружения:
 
 | Переменная | Описание | Пример |
 |------------|----------|---------|
