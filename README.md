@@ -33,14 +33,14 @@ DevOps/
 
 ```bash
 # Установка одной командой
-curl -fsSL https://raw.githubusercontent.com/your-username/your-repo/main/debian12/install-from-github.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/debian12/install-from-github.sh | bash
 ```
 
 ### Локальная установка
 
 ```bash
 # Клонирование репозитория
-git clone https://github.com/your-username/your-repo.git
+git clone https://github.com/ViktorTimofeev/devops-src.git
 cd your-repo/debian12
 
 # Запуск настройки
