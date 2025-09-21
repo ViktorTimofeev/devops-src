@@ -23,7 +23,7 @@ NC='\033[0m'
 # Переменные Oracle
 ORACLE_BASE="/opt/oracle"
 ORACLE_HOME="/opt/oracle/product/11.2.0/dbhome_1"
-ORACLE_SID="orcl"
+ORACLE_SID=""
 ORACLE_USER="oracle"
 
 # Логирование
@@ -46,6 +46,50 @@ log_warning() {
 
 log_info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1" | tee -a "$LOG_FILE"
+}
+
+# Определение SID Oracle
+detect_oracle_sid() {
+    log "Определение Oracle SID..."
+    
+    # Попытка определить SID из переменных окружения пользователя oracle
+    if [[ -f "/home/$ORACLE_USER/.bashrc" ]]; then
+        local detected_sid=$(grep "export ORACLE_SID=" "/home/$ORACLE_USER/.bashrc" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+        if [[ -n "$detected_sid" ]]; then
+            ORACLE_SID="$detected_sid"
+            log "Oracle SID определен из .bashrc: $ORACLE_SID"
+            return
+        fi
+    fi
+    
+    # Попытка определить SID из процессов Oracle
+    local running_sid=$(ps aux | grep "[o]ra_pmon" | grep -v grep | awk '{print $NF}' | sed 's/ora_pmon_//' | head -1)
+    if [[ -n "$running_sid" ]]; then
+        ORACLE_SID="$running_sid"
+        log "Oracle SID определен из процессов: $ORACLE_SID"
+        return
+    fi
+    
+    # Попытка определить SID из listener
+    if [[ -f "$ORACLE_HOME/bin/lsnrctl" ]]; then
+        local listener_sid=$(sudo -u "$ORACLE_USER" bash -c "export ORACLE_HOME=$ORACLE_HOME; $ORACLE_HOME/bin/lsnrctl status" 2>/dev/null | grep "Service" | grep -E "orcl|prod|dev|test" | head -1 | awk '{print $1}' | cut -d'.' -f1)
+        if [[ -n "$listener_sid" ]]; then
+            ORACLE_SID="$listener_sid"
+            log "Oracle SID определен из listener: $ORACLE_SID"
+            return
+        fi
+    fi
+    
+    # Запрос SID у пользователя
+    echo -e "${BLUE}Oracle SID не определен автоматически. Введите Oracle SID:${NC}"
+    read -p "> " ORACLE_SID
+    
+    if [[ -z "$ORACLE_SID" ]]; then
+        log_warning "Oracle SID не указан, используется значение по умолчанию: orcl"
+        ORACLE_SID="orcl"
+    fi
+    
+    log "Oracle SID: $ORACLE_SID"
 }
 
 # Проверка пользователей и групп
@@ -337,6 +381,9 @@ EOF
 # Основная функция
 main() {
     log "Начинаем проверку установки Oracle Database 11.2.0.4.0..."
+    
+    # Определение SID Oracle
+    detect_oracle_sid
     
     # Проверки
     check_users_groups

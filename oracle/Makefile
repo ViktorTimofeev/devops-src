@@ -8,7 +8,7 @@
 # Переменные Oracle
 ORACLE_BASE := /opt/oracle
 ORACLE_HOME := /opt/oracle/product/11.2.0/dbhome_1
-ORACLE_SID := orcl
+ORACLE_SID := $(shell grep "export ORACLE_SID=" /home/oracle/.bashrc 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" || echo "orcl")
 ORACLE_USER := oracle
 ORACLE_GROUP := oinstall
 

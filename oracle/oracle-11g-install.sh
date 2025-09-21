@@ -46,12 +46,183 @@ log_info() {
 ORACLE_VERSION="11.2.0.4.0"
 ORACLE_BASE="/opt/oracle"
 ORACLE_HOME="/opt/oracle/product/11.2.0/dbhome_1"
-ORACLE_SID="orcl"
+ORACLE_SID=""
+ORACLE_DB_NAME=""
 ORACLE_USER="oracle"
 ORACLE_GROUP="oinstall"
 ORACLE_DBA_GROUP="dba"
 ORACLE_OPER_GROUP="oper"
 ORACLE_INVENTORY="/opt/oraInventory"
+
+# Пароли Oracle
+ORACLE_SYS_PASSWORD=""
+ORACLE_SYSTEM_PASSWORD=""
+ORACLE_SYSMAN_PASSWORD=""
+ORACLE_DBSNMP_PASSWORD=""
+
+# Функция ввода SID Oracle
+get_oracle_sid() {
+    log "Настройка Oracle SID..."
+    
+    while true; do
+        echo -e "${BLUE}Введите Oracle SID (например: orcl, prod, dev):${NC}"
+        read -p "> " sid
+        
+        # Проверка на пустое значение
+        if [[ -z "$sid" ]]; then
+            log_error "Oracle SID не может быть пустым"
+            continue
+        fi
+        
+        # Проверка на допустимые символы (только буквы, цифры, дефис, подчеркивание)
+        if [[ ! "$sid" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            log_error "Oracle SID может содержать только буквы, цифры, дефис и подчеркивание"
+            continue
+        fi
+        
+        # Проверка длины (1-8 символов для Oracle SID)
+        if [[ ${#sid} -lt 1 ]] || [[ ${#sid} -gt 8 ]]; then
+            log_error "Oracle SID должен быть от 1 до 8 символов"
+            continue
+        fi
+        
+        # Проверка на зарезервированные имена
+        local reserved_sids=("oracle" "orcl" "test" "demo" "sample" "temp" "backup" "archive")
+        
+        for reserved in "${reserved_sids[@]}"; do
+            if [[ "$sid" == "$reserved" ]]; then
+                log_warning "SID '$sid' является зарезервированным. Рекомендуется использовать уникальное имя"
+                echo -e "${YELLOW}Продолжить с этим SID? (y/n):${NC}"
+                read -p "> " confirm
+                if [[ "$confirm" != "y" ]] && [[ "$confirm" != "Y" ]]; then
+                    continue 2
+                fi
+            fi
+        done
+        
+        ORACLE_SID="$sid"
+        log "Oracle SID: $ORACLE_SID"
+        break
+    done
+}
+
+# Функция ввода названия базы данных
+get_oracle_db_name() {
+    log "Настройка названия базы данных..."
+    
+    while true; do
+        echo -e "${BLUE}Введите название базы данных (например: PROD, DEV, TEST):${NC}"
+        read -p "> " db_name
+        
+        # Проверка на пустое значение
+        if [[ -z "$db_name" ]]; then
+            log_error "Название базы данных не может быть пустым"
+            continue
+        fi
+        
+        # Проверка на допустимые символы (только буквы, цифры, дефис, подчеркивание)
+        if [[ ! "$db_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            log_error "Название базы данных может содержать только буквы, цифры, дефис и подчеркивание"
+            continue
+        fi
+        
+        # Проверка длины (1-30 символов)
+        if [[ ${#db_name} -lt 1 ]] || [[ ${#db_name} -gt 30 ]]; then
+            log_error "Название базы данных должно быть от 1 до 30 символов"
+            continue
+        fi
+        
+        ORACLE_DB_NAME="$db_name"
+        log "Название базы данных: $ORACLE_DB_NAME"
+        break
+    done
+}
+
+# Функция ввода пароля Oracle
+get_oracle_password() {
+    local password_type="$1"
+    local password_var="$2"
+    
+    log "Настройка пароля для $password_type..."
+    
+    while true; do
+        echo -e "${BLUE}Введите пароль для $password_type:${NC}"
+        read -s -p "> " password
+        echo
+        
+        # Проверка на пустое значение
+        if [[ -z "$password" ]]; then
+            log_error "Пароль не может быть пустым"
+            continue
+        fi
+        
+        # Проверка длины (минимум 8 символов)
+        if [[ ${#password} -lt 8 ]]; then
+            log_error "Пароль должен содержать минимум 8 символов"
+            continue
+        fi
+        
+        # Проверка сложности пароля
+        local has_upper=false
+        local has_lower=false
+        local has_digit=false
+        local has_special=false
+        
+        if [[ "$password" =~ [A-Z] ]]; then has_upper=true; fi
+        if [[ "$password" =~ [a-z] ]]; then has_lower=true; fi
+        if [[ "$password" =~ [0-9] ]]; then has_digit=true; fi
+        if [[ "$password" =~ [^a-zA-Z0-9] ]]; then has_special=true; fi
+        
+        local complexity_score=0
+        [[ "$has_upper" == true ]] && ((complexity_score++))
+        [[ "$has_lower" == true ]] && ((complexity_score++))
+        [[ "$has_digit" == true ]] && ((complexity_score++))
+        [[ "$has_special" == true ]] && ((complexity_score++))
+        
+        if [[ $complexity_score -lt 3 ]]; then
+            log_warning "Пароль должен содержать минимум 3 из 4 типов символов:"
+            log_warning "  - Заглавные буквы (A-Z)"
+            log_warning "  - Строчные буквы (a-z)"
+            log_warning "  - Цифры (0-9)"
+            log_warning "  - Специальные символы (!@#$%^&*)"
+            continue
+        fi
+        
+        # Подтверждение пароля
+        echo -e "${BLUE}Подтвердите пароль для $password_type:${NC}"
+        read -s -p "> " password_confirm
+        echo
+        
+        if [[ "$password" != "$password_confirm" ]]; then
+            log_error "Пароли не совпадают"
+            continue
+        fi
+        
+        eval "$password_var='$password'"
+        log "Пароль для $password_type установлен"
+        break
+    done
+}
+
+# Функция настройки Oracle конфигурации
+setup_oracle_config() {
+    log "Настройка конфигурации Oracle..."
+    
+    # Получение данных от пользователя
+    get_oracle_sid
+    get_oracle_db_name
+    
+    # Настройка паролей
+    get_oracle_password "SYS" "ORACLE_SYS_PASSWORD"
+    get_oracle_password "SYSTEM" "ORACLE_SYSTEM_PASSWORD"
+    get_oracle_password "SYSMAN" "ORACLE_SYSMAN_PASSWORD"
+    get_oracle_password "DBSNMP" "ORACLE_DBSNMP_PASSWORD"
+    
+    log "Конфигурация Oracle настроена:"
+    log_info "SID: $ORACLE_SID"
+    log_info "Название БД: $ORACLE_DB_NAME"
+    log_info "Пароли установлены для всех пользователей"
+}
 
 # Проверка прав root
 check_root() {
@@ -268,7 +439,7 @@ configure_environment() {
 export ORACLE_BASE=$ORACLE_BASE
 export ORACLE_HOME=$ORACLE_HOME
 export ORACLE_SID=$ORACLE_SID
-export ORACLE_UNQNAME=$ORACLE_SID
+export ORACLE_UNQNAME=$ORACLE_DB_NAME
 export PATH=\$ORACLE_HOME/bin:\$PATH
 export LD_LIBRARY_PATH=\$ORACLE_HOME/lib:\$LD_LIBRARY_PATH
 export CLASSPATH=\$ORACLE_HOME/jlib:\$ORACLE_HOME/rdbms/jlib
@@ -468,7 +639,7 @@ oracle.install.db.config.starterdb.type=GENERAL_PURPOSE
 #------------------------------------------------------------------------------
 # Specify the Starter Database Global Database Name.
 #------------------------------------------------------------------------------
-oracle.install.db.config.starterdb.globalDBName=$ORACLE_SID
+oracle.install.db.config.starterdb.globalDBName=$ORACLE_DB_NAME
 
 #------------------------------------------------------------------------------
 # Specify the Starter Database SID.
@@ -520,10 +691,10 @@ oracle.install.db.config.starterdb.enableSecuritySettings=true
 #------------------------------------------------------------------------------
 # Specify the password to be used for database schemas.
 #------------------------------------------------------------------------------
-oracle.install.db.config.starterdb.password.SYS=Oracle123!
-oracle.install.db.config.starterdb.password.SYSTEM=Oracle123!
-oracle.install.db.config.starterdb.password.SYSMAN=Oracle123!
-oracle.install.db.config.starterdb.password.DBSNMP=Oracle123!
+oracle.install.db.config.starterdb.password.SYS=$ORACLE_SYS_PASSWORD
+oracle.install.db.config.starterdb.password.SYSTEM=$ORACLE_SYSTEM_PASSWORD
+oracle.install.db.config.starterdb.password.SYSMAN=$ORACLE_SYSMAN_PASSWORD
+oracle.install.db.config.starterdb.password.DBSNMP=$ORACLE_DBSNMP_PASSWORD
 
 #------------------------------------------------------------------------------
 # Specify the management option to use for this Oracle installation.
@@ -658,7 +829,7 @@ oracle.install.db.config.starterdb.type=GENERAL_PURPOSE
 #------------------------------------------------------------------------------
 # Specify the Starter Database Global Database Name.
 #------------------------------------------------------------------------------
-oracle.install.db.config.starterdb.globalDBName=$ORACLE_SID
+oracle.install.db.config.starterdb.globalDBName=$ORACLE_DB_NAME
 
 #------------------------------------------------------------------------------
 # Specify the Starter Database SID.
@@ -710,10 +881,10 @@ oracle.install.db.config.starterdb.enableSecuritySettings=true
 #------------------------------------------------------------------------------
 # Specify the password to be used for database schemas.
 #------------------------------------------------------------------------------
-oracle.install.db.config.starterdb.password.SYS=Oracle123!
-oracle.install.db.config.starterdb.password.SYSTEM=Oracle123!
-oracle.install.db.config.starterdb.password.SYSMAN=Oracle123!
-oracle.install.db.config.starterdb.password.DBSNMP=Oracle123!
+oracle.install.db.config.starterdb.password.SYS=$ORACLE_SYS_PASSWORD
+oracle.install.db.config.starterdb.password.SYSTEM=$ORACLE_SYSTEM_PASSWORD
+oracle.install.db.config.starterdb.password.SYSMAN=$ORACLE_SYSMAN_PASSWORD
+oracle.install.db.config.starterdb.password.DBSNMP=$ORACLE_DBSNMP_PASSWORD
 
 #------------------------------------------------------------------------------
 # Specify the management option to use for this Oracle installation.
@@ -792,6 +963,9 @@ main() {
     check_root
     check_system
     
+    # Настройка конфигурации Oracle
+    setup_oracle_config
+    
     # Подготовка системы
     create_oracle_users
     install_prerequisites
@@ -802,9 +976,16 @@ main() {
     create_response_file
     
     log "Подготовка системы завершена!"
+    log "Конфигурация Oracle:"
+    log_info "SID: $ORACLE_SID"
+    log_info "Название БД: $ORACLE_DB_NAME"
+    log_info "Пользователь: $ORACLE_USER"
+    log_info "База: $ORACLE_BASE"
+    log_info "Дом: $ORACLE_HOME"
+    
     log "Следующие шаги:"
     log "1. Скачайте Oracle Database 11.2.0.4.0 с официального сайта"
-    log "2. Распакуйте архив в /tmp/"
+    log "2. Распакуйте архив в /tmp/database/"
     log "3. Запустите установку от имени пользователя oracle:"
     log "   su - oracle"
     log "   cd /tmp/database"
