@@ -277,6 +277,26 @@ update_system() {
     log "Система успешно обновлена"
 }
 
+# Исправление проблем с пакетами
+fix_package_conflicts() {
+    log "Исправление конфликтов пакетов..."
+    
+    # Удаление проблемных пакетов, если они установлены
+    if dpkg -l | grep -q "^ii.*ntp "; then
+        log "Удаление старого пакета ntp..."
+        apt remove -y ntp || true
+    fi
+    
+    # Очистка зависимостей
+    apt autoremove -y
+    apt autoclean
+    
+    # Исправление сломанных пакетов
+    apt --fix-broken install -y || log_warning "Некоторые пакеты не удалось исправить"
+    
+    log "Конфликты пакетов исправлены"
+}
+
 # Установка базовых пакетов
 install_base_packages() {
     log "Установка базовых пакетов..."
@@ -297,7 +317,6 @@ install_base_packages() {
         dnsutils \
         telnet \
         tcpdump \
-        iptables-persistent \
         ufw \
         fail2ban \
         logwatch \
@@ -308,7 +327,6 @@ install_base_packages() {
         clamav-daemon \
         cron \
         systemd-timesyncd \
-        ntp \
         openssh-server \
         sudo \
         auditd \
@@ -322,6 +340,12 @@ install_base_packages() {
         ca-certificates \
         gnupg \
         lsb-release
+    
+    # Установка iptables-persistent отдельно (может конфликтовать с ufw)
+    if ! dpkg -l | grep -q "iptables-persistent"; then
+        log "Установка iptables-persistent..."
+        apt install -y iptables-persistent || log_warning "iptables-persistent не установлен (может конфликтовать с ufw)"
+    fi
     
     log "Базовые пакеты установлены"
 }
@@ -686,29 +710,29 @@ EOF
 configure_time() {
     log "Настройка синхронизации времени..."
     
-    # Настройка NTP
-    cat > /etc/ntp.conf << 'EOF'
-# Серверы времени
-server 0.pool.ntp.org iburst
-server 1.pool.ntp.org iburst
-server 2.pool.ntp.org iburst
-server 3.pool.ntp.org iburst
-
-# Настройки безопасности
-restrict default kod nomodify notrap nopeer noquery
-restrict -6 default kod nomodify notrap nopeer noquery
-restrict 127.0.0.1
-restrict -6 ::1
+    # Настройка systemd-timesyncd (современная альтернатива NTP)
+    cat > /etc/systemd/timesyncd.conf << 'EOF'
+[Time]
+NTP=0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org
+FallbackNTP=time.google.com time.cloudflare.com
+PollIntervalMinSec=32
+PollIntervalMaxSec=2048
+RootDistanceMaxSec=5
+PollIntervalMinSec=32
+PollIntervalMaxSec=2048
 EOF
 
     # Включение службы времени
-    systemctl enable ntp
-    systemctl start ntp
+    systemctl enable systemd-timesyncd
+    systemctl start systemd-timesyncd
     
     # Синхронизация времени
-    ntpdate -s time.nist.gov
+    timedatectl set-ntp true
     
-    log "Синхронизация времени настроена"
+    # Проверка статуса
+    timedatectl status
+    
+    log "Синхронизация времени настроена (systemd-timesyncd)"
 }
 
 # Создание отчета о настройке
@@ -787,6 +811,7 @@ main() {
     
     # Основные настройки
     update_system
+    fix_package_conflicts
     install_base_packages
     setup_admin_user
     configure_ssh
