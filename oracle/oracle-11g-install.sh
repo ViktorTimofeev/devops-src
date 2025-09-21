@@ -3,19 +3,13 @@
 # =============================================================================
 # Скрипт установки Oracle Database 11.2.0.4.0
 # Автор: DevOps Expert Team
-# Версия: 1.1
-# Описание: Автоматическая установка Oracle 11g на Debian/Ubuntu
+# Версия: 1.2
+# Описание: Интерактивная установка Oracle 11g на Debian/Ubuntu
 # 
-# Переменные окружения для неинтерактивной установки:
-# ORACLE_SID_ENV - Oracle SID (например: prod, dev, test)
-# ORACLE_DB_NAME_ENV - Название базы данных (например: PROD, DEV, TEST)
-# ORACLE_SYS_PASSWORD_ENV - Пароль для пользователя SYS
-# ORACLE_SYSTEM_PASSWORD_ENV - Пароль для пользователя SYSTEM
-# ORACLE_SYSMAN_PASSWORD_ENV - Пароль для пользователя SYSMAN
-# ORACLE_DBSNMP_PASSWORD_ENV - Пароль для пользователя DBSNMP
-#
-# Пример использования с переменными окружения:
-# ORACLE_SID_ENV=prod ORACLE_DB_NAME_ENV=PROD curl -fsSL https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/oracle/oracle-11g-install.sh | bash
+# Использование:
+# 1. Скачать скрипт: wget https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/oracle/oracle-11g-install.sh
+# 2. Запустить: sudo bash oracle-11g-install.sh
+# 3. Следовать интерактивным инструкциям
 # =============================================================================
 
 # Настройка кодировки UTF-8
@@ -75,13 +69,6 @@ ORACLE_DBSNMP_PASSWORD=""
 get_oracle_sid() {
     log "Настройка Oracle SID..."
     
-    # Проверка интерактивного режима
-    if [[ ! -t 0 ]]; then
-        log_warning "Неинтерактивный режим. Используется значение по умолчанию: orcl"
-        ORACLE_SID="orcl"
-        return
-    fi
-    
     while true; do
         echo -e "${BLUE}Введите Oracle SID (например: orcl, prod, dev):${NC}"
         read -p "> " sid
@@ -128,13 +115,6 @@ get_oracle_sid() {
 get_oracle_db_name() {
     log "Настройка названия базы данных..."
     
-    # Проверка интерактивного режима
-    if [[ ! -t 0 ]]; then
-        log_warning "Неинтерактивный режим. Используется значение по умолчанию: ORCL"
-        ORACLE_DB_NAME="ORCL"
-        return
-    fi
-    
     while true; do
         echo -e "${BLUE}Введите название базы данных (например: PROD, DEV, TEST):${NC}"
         read -p "> " db_name
@@ -169,13 +149,6 @@ get_oracle_password() {
     local password_var="$2"
     
     log "Настройка пароля для $password_type..."
-    
-    # Проверка интерактивного режима
-    if [[ ! -t 0 ]]; then
-        log_warning "Неинтерактивный режим. Используется пароль по умолчанию для $password_type"
-        eval "$password_var='Oracle123!'"
-        return
-    fi
     
     while true; do
         echo -e "${BLUE}Введите пароль для $password_type:${NC}"
@@ -240,55 +213,15 @@ get_oracle_password() {
 setup_oracle_config() {
     log "Настройка конфигурации Oracle..."
     
-    # Отладочная информация о переменных окружения
-    log_info "Проверка переменных окружения:"
-    log_info "ORACLE_SID_ENV: ${ORACLE_SID_ENV:-не задана}"
-    log_info "ORACLE_DB_NAME_ENV: ${ORACLE_DB_NAME_ENV:-не задана}"
-    log_info "ORACLE_SYS_PASSWORD_ENV: ${ORACLE_SYS_PASSWORD_ENV:-не задана}"
-    
-    # Проверка переменных окружения
-    if [[ -n "${ORACLE_SID_ENV:-}" ]]; then
-        ORACLE_SID="$ORACLE_SID_ENV"
-        log "Oracle SID задан через переменную окружения: $ORACLE_SID"
-    else
-        get_oracle_sid
-    fi
-    
-    if [[ -n "${ORACLE_DB_NAME_ENV:-}" ]]; then
-        ORACLE_DB_NAME="$ORACLE_DB_NAME_ENV"
-        log "Название БД задано через переменную окружения: $ORACLE_DB_NAME"
-    else
-        get_oracle_db_name
-    fi
+    # Интерактивный ввод конфигурации
+    get_oracle_sid
+    get_oracle_db_name
     
     # Настройка паролей
-    if [[ -n "${ORACLE_SYS_PASSWORD_ENV:-}" ]]; then
-        ORACLE_SYS_PASSWORD="$ORACLE_SYS_PASSWORD_ENV"
-        log "Пароль SYS задан через переменную окружения"
-    else
-        get_oracle_password "SYS" "ORACLE_SYS_PASSWORD"
-    fi
-    
-    if [[ -n "${ORACLE_SYSTEM_PASSWORD_ENV:-}" ]]; then
-        ORACLE_SYSTEM_PASSWORD="$ORACLE_SYSTEM_PASSWORD_ENV"
-        log "Пароль SYSTEM задан через переменную окружения"
-    else
-        get_oracle_password "SYSTEM" "ORACLE_SYSTEM_PASSWORD"
-    fi
-    
-    if [[ -n "${ORACLE_SYSMAN_PASSWORD_ENV:-}" ]]; then
-        ORACLE_SYSMAN_PASSWORD="$ORACLE_SYSMAN_PASSWORD_ENV"
-        log "Пароль SYSMAN задан через переменную окружения"
-    else
-        get_oracle_password "SYSMAN" "ORACLE_SYSMAN_PASSWORD"
-    fi
-    
-    if [[ -n "${ORACLE_DBSNMP_PASSWORD_ENV:-}" ]]; then
-        ORACLE_DBSNMP_PASSWORD="$ORACLE_DBSNMP_PASSWORD_ENV"
-        log "Пароль DBSNMP задан через переменную окружения"
-    else
-        get_oracle_password "DBSNMP" "ORACLE_DBSNMP_PASSWORD"
-    fi
+    get_oracle_password "SYS" "ORACLE_SYS_PASSWORD"
+    get_oracle_password "SYSTEM" "ORACLE_SYSTEM_PASSWORD"
+    get_oracle_password "SYSMAN" "ORACLE_SYSMAN_PASSWORD"
+    get_oracle_password "DBSNMP" "ORACLE_DBSNMP_PASSWORD"
     
     log "Конфигурация Oracle настроена:"
     log_info "SID: $ORACLE_SID"
@@ -1039,60 +972,11 @@ EOF
     log "Ответный файл создан: /tmp/oracle_install.rsp"
 }
 
-# Парсинг параметров командной строки
-parse_arguments() {
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --sid)
-                ORACLE_SID_ENV="$2"
-                shift 2
-                ;;
-            --db-name)
-                ORACLE_DB_NAME_ENV="$2"
-                shift 2
-                ;;
-            --sys-password)
-                ORACLE_SYS_PASSWORD_ENV="$2"
-                shift 2
-                ;;
-            --system-password)
-                ORACLE_SYSTEM_PASSWORD_ENV="$2"
-                shift 2
-                ;;
-            --sysman-password)
-                ORACLE_SYSMAN_PASSWORD_ENV="$2"
-                shift 2
-                ;;
-            --dbsnmp-password)
-                ORACLE_DBSNMP_PASSWORD_ENV="$2"
-                shift 2
-                ;;
-            --help)
-                echo "Использование: $0 [опции]"
-                echo "Опции:"
-                echo "  --sid SID                    Oracle SID"
-                echo "  --db-name NAME               Название базы данных"
-                echo "  --sys-password PASSWORD      Пароль для SYS"
-                echo "  --system-password PASSWORD   Пароль для SYSTEM"
-                echo "  --sysman-password PASSWORD   Пароль для SYSMAN"
-                echo "  --dbsnmp-password PASSWORD   Пароль для DBSNMP"
-                echo "  --help                       Показать эту справку"
-                exit 0
-                ;;
-            *)
-                log_error "Неизвестный параметр: $1"
-                exit 1
-                ;;
-        esac
-    done
-}
 
 # Основная функция
 main() {
     log "Начинаем установку Oracle Database $ORACLE_VERSION..."
     
-    # Парсинг аргументов командной строки
-    parse_arguments "$@"
     
     # Проверки
     check_root
