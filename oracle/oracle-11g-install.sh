@@ -370,7 +370,16 @@ install_prerequisites() {
         binutils \
         cpp \
         gawk \
-        x11-utils
+        x11-utils \
+        x11-xserver-utils \
+        x11-apps \
+        xvfb \
+        xauth \
+        xfonts-100dpi \
+        xfonts-75dpi \
+        xfonts-base \
+        xfonts-cyrillic \
+        xfonts-scalable
     
     log "Необходимые пакеты установлены"
 }
@@ -1097,6 +1106,49 @@ download_oracle_from_url() {
     fi
 }
 
+# Функция настройки headless режима
+setup_headless_mode() {
+    log "Настройка headless режима для Oracle..."
+    
+    # Установка переменных окружения для headless режима
+    export DISPLAY=:99
+    export ORACLE_SKIP_DISPLAY_CHECK=true
+    
+    # Запуск виртуального дисплея
+    log "Запуск виртуального дисплея Xvfb..."
+    Xvfb :99 -screen 0 1024x768x24 &
+    XVFB_PID=$!
+    
+    # Ждем запуска Xvfb
+    sleep 3
+    
+    # Проверяем, что Xvfb запущен
+    if kill -0 $XVFB_PID 2>/dev/null; then
+        log "Виртуальный дисплей Xvfb запущен (PID: $XVFB_PID)"
+        
+        # Проверяем доступность дисплея
+        if xdpyinfo -display :99 >/dev/null 2>&1; then
+            log "Дисплей :99 доступен для Oracle установки"
+            return 0
+        else
+            log_warning "Дисплей :99 недоступен, но продолжаем установку"
+            return 0
+        fi
+    else
+        log_warning "Не удалось запустить Xvfb, продолжаем без виртуального дисплея"
+        return 0
+    fi
+}
+
+# Функция остановки headless режима
+stop_headless_mode() {
+    if [[ -n "${XVFB_PID:-}" ]]; then
+        log "Остановка виртуального дисплея Xvfb (PID: $XVFB_PID)..."
+        kill $XVFB_PID 2>/dev/null || true
+        unset XVFB_PID
+    fi
+}
+
 # Функция запуска установки Oracle
 install_oracle() {
     log "Запуск установки Oracle Database..."
@@ -1110,6 +1162,9 @@ install_oracle() {
         return 1
     fi
     
+    # Настройка headless режима
+    setup_headless_mode
+    
     # Переключаемся на пользователя oracle
     log "Переключение на пользователя oracle..."
     su - oracle -c "
@@ -1118,10 +1173,17 @@ install_oracle() {
         export ORACLE_HOME=$ORACLE_HOME
         export ORACLE_SID=$ORACLE_SID
         export ORACLE_UNQNAME=$ORACLE_DB_NAME
+        export DISPLAY=:99
+        export ORACLE_SKIP_DISPLAY_CHECK=true
         ./runInstaller -silent -responseFile /tmp/oracle_install.rsp
     "
     
-    if [[ $? -eq 0 ]]; then
+    local install_result=$?
+    
+    # Останавливаем headless режим
+    stop_headless_mode
+    
+    if [[ $install_result -eq 0 ]]; then
         log "Установка Oracle Database завершена успешно!"
         return 0
     else
@@ -1196,10 +1258,12 @@ main() {
                 log "sudo ./oracle-check.sh"
             else
                 log_error "Ошибка при выполнении root.sh"
+                stop_headless_mode
                 exit 1
             fi
         else
             log_error "Ошибка при установке Oracle Database"
+            stop_headless_mode
             exit 1
         fi
     else
@@ -1211,10 +1275,22 @@ main() {
         log "4. Или запустите установку вручную:"
         log "   su - oracle"
         log "   cd /tmp/database"
+        log "   export DISPLAY=:99"
+        log "   export ORACLE_SKIP_DISPLAY_CHECK=true"
         log "   ./runInstaller -silent -responseFile /tmp/oracle_install.rsp"
         log "   sudo $ORACLE_HOME/root.sh"
     fi
 }
+
+# Обработчик сигналов для корректного завершения
+cleanup_on_exit() {
+    log "Получен сигнал завершения, очистка ресурсов..."
+    stop_headless_mode
+    exit 0
+}
+
+# Установка обработчиков сигналов
+trap cleanup_on_exit SIGINT SIGTERM
 
 # Запуск основной функции
 main "$@"
