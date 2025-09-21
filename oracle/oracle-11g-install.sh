@@ -972,6 +972,183 @@ EOF
     log "Ответный файл создан: /tmp/oracle_install.rsp"
 }
 
+# Функция скачивания Oracle Database
+download_oracle() {
+    log "Проверка наличия Oracle Database..."
+    
+    ORACLE_DOWNLOAD_DIR="/tmp/database"
+    
+    # Проверяем, есть ли уже распакованный Oracle
+    if [[ -d "$ORACLE_DOWNLOAD_DIR" && -f "$ORACLE_DOWNLOAD_DIR/runInstaller" ]]; then
+        log "Oracle Database уже скачан в $ORACLE_DOWNLOAD_DIR"
+        return 0
+    fi
+    
+    log_warning "Oracle Database не найден в $ORACLE_DOWNLOAD_DIR"
+    
+    # Предлагаем варианты
+    echo -e "${BLUE}Выберите способ получения Oracle Database:${NC}"
+    echo "1. У меня есть ссылка для скачивания"
+    echo "2. Я скачаю вручную"
+    echo "3. Продолжить без Oracle Database (только подготовка системы)"
+    
+    read -p "Выберите вариант (1-3): " choice
+    
+    case $choice in
+        1)
+            download_oracle_from_url
+            ;;
+        2)
+            log "Для ручного скачивания:"
+            log "1. Скачайте Oracle Database 11.2.0.4.0 с официального сайта Oracle"
+            log "2. Распакуйте архив в $ORACLE_DOWNLOAD_DIR"
+            log "3. Перезапустите скрипт"
+            return 1
+            ;;
+        3)
+            log "Продолжаем только с подготовкой системы..."
+            return 1
+            ;;
+        *)
+            log_error "Неверный выбор"
+            return 1
+            ;;
+    esac
+}
+
+# Функция скачивания Oracle по URL
+download_oracle_from_url() {
+    log "Скачивание Oracle Database по URL..."
+    
+    ORACLE_DOWNLOAD_DIR="/tmp/database"
+    
+    echo -e "${BLUE}Введите URL для скачивания Oracle Database:${NC}"
+    read -p "> " oracle_url
+    
+    if [[ -z "$oracle_url" ]]; then
+        log_error "URL не может быть пустым"
+        return 1
+    fi
+    
+    # Создаем директорию для скачивания
+    mkdir -p "$ORACLE_DOWNLOAD_DIR"
+    
+    # Определяем имя файла
+    filename=$(basename "$oracle_url")
+    if [[ "$filename" == "$oracle_url" ]]; then
+        filename="oracle_database.zip"
+    fi
+    
+    log "Скачивание Oracle Database..."
+    log_info "URL: $oracle_url"
+    log_info "Файл: $filename"
+    
+    # Проверяем доступность wget или curl
+    if command -v wget >/dev/null 2>&1; then
+        if wget -O "/tmp/$filename" "$oracle_url"; then
+            log "Oracle Database скачан успешно"
+        else
+            log_error "Ошибка при скачивании Oracle Database"
+            return 1
+        fi
+    elif command -v curl >/dev/null 2>&1; then
+        if curl -L -o "/tmp/$filename" "$oracle_url"; then
+            log "Oracle Database скачан успешно"
+        else
+            log_error "Ошибка при скачивании Oracle Database"
+            return 1
+        fi
+    else
+        log_error "Не найдены wget или curl для скачивания"
+        return 1
+    fi
+    
+    # Распаковка архива
+    log "Распаковка Oracle Database..."
+    cd /tmp
+    
+    if [[ "$filename" =~ \.(zip|ZIP)$ ]]; then
+        if command -v unzip >/dev/null 2>&1; then
+            unzip -q "$filename" -d "$ORACLE_DOWNLOAD_DIR"
+        else
+            log_error "unzip не найден. Установка unzip..."
+            apt update -y && apt install -y unzip
+            unzip -q "$filename" -d "$ORACLE_DOWNLOAD_DIR"
+        fi
+    elif [[ "$filename" =~ \.(tar\.gz|tgz)$ ]]; then
+        tar -xzf "$filename" -C "$ORACLE_DOWNLOAD_DIR"
+    else
+        log_error "Неподдерживаемый формат архива: $filename"
+        return 1
+    fi
+    
+    # Очистка
+    rm -f "/tmp/$filename"
+    
+    # Проверяем успешность распаковки
+    if [[ -f "$ORACLE_DOWNLOAD_DIR/runInstaller" ]]; then
+        log "Oracle Database успешно распакован в $ORACLE_DOWNLOAD_DIR"
+        chown -R "$ORACLE_USER:$ORACLE_GROUP" "$ORACLE_DOWNLOAD_DIR"
+        return 0
+    else
+        log_error "Oracle Database не найден после распаковки"
+        log "Проверьте структуру архива и убедитесь, что runInstaller находится в корне"
+        return 1
+    fi
+}
+
+# Функция запуска установки Oracle
+install_oracle() {
+    log "Запуск установки Oracle Database..."
+    
+    ORACLE_DOWNLOAD_DIR="/tmp/database"
+    
+    # Проверяем наличие Oracle
+    if [[ ! -d "$ORACLE_DOWNLOAD_DIR" || ! -f "$ORACLE_DOWNLOAD_DIR/runInstaller" ]]; then
+        log_error "Oracle Database не найден в $ORACLE_DOWNLOAD_DIR"
+        log "Скачайте Oracle Database 11.2.0.4.0 и распакуйте в $ORACLE_DOWNLOAD_DIR"
+        return 1
+    fi
+    
+    # Переключаемся на пользователя oracle
+    log "Переключение на пользователя oracle..."
+    su - oracle -c "
+        cd $ORACLE_DOWNLOAD_DIR
+        export ORACLE_BASE=$ORACLE_BASE
+        export ORACLE_HOME=$ORACLE_HOME
+        export ORACLE_SID=$ORACLE_SID
+        export ORACLE_UNQNAME=$ORACLE_DB_NAME
+        ./runInstaller -silent -responseFile /tmp/oracle_install.rsp
+    "
+    
+    if [[ $? -eq 0 ]]; then
+        log "Установка Oracle Database завершена успешно!"
+        return 0
+    else
+        log_error "Ошибка при установке Oracle Database"
+        return 1
+    fi
+}
+
+# Функция запуска root.sh
+run_root_script() {
+    log "Запуск root.sh..."
+    
+    if [[ -f "$ORACLE_HOME/root.sh" ]]; then
+        "$ORACLE_HOME/root.sh"
+        if [[ $? -eq 0 ]]; then
+            log "root.sh выполнен успешно!"
+            return 0
+        else
+            log_error "Ошибка при выполнении root.sh"
+            return 1
+        fi
+    else
+        log_error "root.sh не найден в $ORACLE_HOME"
+        return 1
+    fi
+}
+
 
 # Основная функция
 main() {
@@ -1002,17 +1179,41 @@ main() {
     log_info "База: $ORACLE_BASE"
     log_info "Дом: $ORACLE_HOME"
     
-    log "Следующие шаги:"
-    log "1. Скачайте Oracle Database 11.2.0.4.0 с официального сайта"
-    log "2. Распакуйте архив в /tmp/database/"
-    log "3. Запустите установку от имени пользователя oracle:"
-    log "   su - oracle"
-    log "   cd /tmp/database"
-    log "   ./runInstaller -silent -responseFile /tmp/oracle_install.rsp"
-    log "4. После установки запустите root.sh:"
-    log "   sudo $ORACLE_HOME/root.sh"
-    
-    log "Установка Oracle Database $ORACLE_VERSION подготовлена!"
+    # Проверка наличия Oracle Database
+    if download_oracle; then
+        # Запуск установки Oracle
+        if install_oracle; then
+            # Запуск root.sh
+            if run_root_script; then
+                log "=== Установка Oracle Database $ORACLE_VERSION завершена успешно! ==="
+                log_info "SID: $ORACLE_SID"
+                log_info "База данных: $ORACLE_DB_NAME"
+                log_info "Пользователь: $ORACLE_USER"
+                log_info "ORACLE_HOME: $ORACLE_HOME"
+                log_info "ORACLE_BASE: $ORACLE_BASE"
+                
+                log "Проверка установки:"
+                log "sudo ./oracle-check.sh"
+            else
+                log_error "Ошибка при выполнении root.sh"
+                exit 1
+            fi
+        else
+            log_error "Ошибка при установке Oracle Database"
+            exit 1
+        fi
+    else
+        log "Установка Oracle Database $ORACLE_VERSION подготовлена!"
+        log "Следующие шаги:"
+        log "1. Скачайте Oracle Database 11.2.0.4.0 с официального сайта"
+        log "2. Распакуйте архив в /tmp/database/"
+        log "3. Перезапустите скрипт для автоматической установки"
+        log "4. Или запустите установку вручную:"
+        log "   su - oracle"
+        log "   cd /tmp/database"
+        log "   ./runInstaller -silent -responseFile /tmp/oracle_install.rsp"
+        log "   sudo $ORACLE_HOME/root.sh"
+    fi
 }
 
 # Запуск основной функции
