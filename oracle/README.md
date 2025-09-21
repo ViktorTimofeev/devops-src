@@ -15,6 +15,7 @@
 - **Память**: Минимум 2GB RAM
 - **Диск**: Минимум 10GB свободного места
 - **Права**: root
+- **Интернет**: curl или wget (автоматически устанавливается при необходимости)
 
 ### Установка
 
@@ -29,8 +30,11 @@ sudo ./oracle-11g-install.sh
 
 #### Неинтерактивная установка с параметрами через URL
 ```bash
-# Установка с параметрами через URL (рекомендуемый способ)
+# Установка с параметрами через URL (curl)
 curl -fsSL "https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/oracle/oracle-install-with-params.sh?sid=prod&db_name=PROD&sys_password=MySecurePass123!" | bash
+
+# Установка с параметрами через URL (wget)
+wget -qO- "https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/oracle/oracle-install-with-wget.sh?sid=prod&db_name=PROD&sys_password=MySecurePass123!" | bash
 ```
 
 #### Неинтерактивная установка с переменными окружения
@@ -47,9 +51,43 @@ ORACLE_DBSNMP_PASSWORD_ENV=MySecurePass123! \
 
 #### Неинтерактивная установка с паролями по умолчанию
 ```bash
-# Установка с паролями по умолчанию (Oracle123!)
+# Установка с паролями по умолчанию (Oracle123!) - curl
 curl -fsSL https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/oracle/oracle-11g-install.sh | bash
+
+# Установка с паролями по умолчанию (Oracle123!) - wget
+wget -qO- https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/oracle/oracle-install-wget.sh | bash
 ```
+
+## 🔧 Альтернативные способы установки
+
+### curl vs wget
+
+| Способ | Команда | Описание |
+|--------|---------|----------|
+| **curl** | `curl -fsSL URL \| bash` | Стандартный способ, быстрый |
+| **wget** | `wget -qO- URL \| bash` | Альтернатива для систем без curl |
+
+### Автоматическая установка утилит
+
+Скрипты автоматически проверяют и устанавливают необходимые утилиты:
+
+```bash
+# Проверка curl
+if ! command -v curl >/dev/null 2>&1; then
+    apt update -y && apt install -y curl
+fi
+
+# Проверка wget
+if ! command -v wget >/dev/null 2>&1; then
+    apt update -y && apt install -y wget
+fi
+```
+
+### Рекомендации по выбору
+
+- **curl**: Рекомендуется для современных систем
+- **wget**: Используйте если curl недоступен или заблокирован
+- **Локальная установка**: Для систем без интернета
 
 ## 📋 Что делает скрипт
 
@@ -110,9 +148,13 @@ ORACLE_GROUP="oinstall"
 | `sysman_password` | Пароль для пользователя SYSMAN | `MySecurePass123!` |
 | `dbsnmp_password` | Пароль для пользователя DBSNMP | `MySecurePass123!` |
 
-**Пример URL:**
+**Примеры URL:**
 ```
+# curl
 https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/oracle/oracle-install-with-params.sh?sid=prod&db_name=PROD&sys_password=MySecurePass123!
+
+# wget
+https://raw.githubusercontent.com/ViktorTimofeev/devops-src/main/oracle/oracle-install-with-wget.sh?sid=prod&db_name=PROD&sys_password=MySecurePass123!
 ```
 
 ### Переменные окружения
