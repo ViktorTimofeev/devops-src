@@ -3,9 +3,13 @@
 # =============================================================================
 # Скрипт настройки и защиты сервера Debian 12
 # Автор: DevOps Expert Team
-# Версия: 1.0
+# Версия: 1.1
 # Описание: Комплексная настройка сервера Debian 12 с максимальной защитой
 # =============================================================================
+
+# Настройка кодировки UTF-8
+export LANG=ru_RU.UTF-8
+export LC_ALL=ru_RU.UTF-8
 
 set -euo pipefail  # Прерывание при ошибках и неопределенных переменных
 
@@ -211,6 +215,26 @@ EOF
     log_info "Пользователь добавлен в группу sudo"
     log_info "Директория SSH создана: /home/$ADMIN_USERNAME/.ssh"
     log_info "Полезные алиасы добавлены в .bashrc"
+}
+
+# Проверка и настройка локали
+setup_locale() {
+    log "Настройка локали UTF-8..."
+    
+    # Проверка наличия русской локали
+    if ! locale -a | grep -q "ru_RU.utf8"; then
+        log "Установка русской локали..."
+        apt update -y
+        apt install -y locales
+        sed -i 's/# ru_RU.UTF-8 UTF-8/ru_RU.UTF-8 UTF-8/' /etc/locale.gen
+        locale-gen
+    fi
+    
+    # Установка локали для текущей сессии
+    export LANG=ru_RU.UTF-8
+    export LC_ALL=ru_RU.UTF-8
+    
+    log "Локаль UTF-8 настроена"
 }
 
 # Проверка прав root
@@ -759,6 +783,7 @@ main() {
     # Проверки
     check_root
     check_debian_version
+    setup_locale
     
     # Основные настройки
     update_system
